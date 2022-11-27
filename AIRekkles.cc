@@ -128,7 +128,7 @@ struct PLAYER_NAME : public Player {
         if (dist < distances[p.i][p.j]) {
           // cerr << dist << " " << distances[p.i][p.j] << endl;
           // If we have enough units to perform suprise attacks at distance 2, do not replace
-          if (mapC[targetPos.i][targetPos.j] == cEnemy and distances[targetPos.i][targetPos.j] == 2 and units.size() >= 15) continue;
+          if (mapC[targetPos.i][targetPos.j] == cEnemy and distances[p.i][p.j] == 2 and units.size() >= 15) continue;
           targetPos = p;
           targetDist = dist;
           return d;
@@ -178,7 +178,7 @@ struct PLAYER_NAME : public Player {
       Pos newPos = u.pos + d;
       if (posOk(newPos)) {
         // If there's an enemy next to us, prioritize movement to kill him.
-        if (mapC[newPos.i][newPos.j] == cEnemy and distances[newPos.i][newPos.j] != -1) {
+        if (mapC[newPos.i][newPos.j] == cEnemy and distances[newPos.i][newPos.j] == -1) {
           targetPos = newPos;
           targetDist = 1;
           return d;
@@ -251,22 +251,11 @@ struct PLAYER_NAME : public Player {
     return d;
   }
 
-  struct Movement {
-    int id;
-    Dir d;
-  };
-
-  struct Compare {
-    bool operator() (const Movement& a, const Movement& b) const {
-      return a.id < b.id;
-    }
-  };
-
   void moveUnits() {
     // Contains first movements to perform
-    vector<Movement> firstMovements;
+    map<int, Dir> firstMovements;
     // Contains last movements to perform
-    vector<Movement> lastMovements;
+    map<int, Dir> lastMovements;
     // Contains movements to perform with no priority
     map<int, Dir> nextMovements;
     // Contains the id of the unit planning to go to that position
@@ -278,26 +267,27 @@ struct PLAYER_NAME : public Player {
       auto it = set_units.begin();
       int id = *it;
       set_units.erase(it);
-      // cerr << "unit id: " << id << endl;
       Unit u = unit(id);
       Pos targetPos;
       int targetDist;
+
+      // cerr << "ID: " << id << endl;
+
       Dir d = findNextMove(u, distances, targetPos, targetDist);
-      Movement m;
-      m.id = id;
-      m.d = d;
-      // cerr << "Target Pos: (" << u.pos.i << ',' << u.pos.j << "), Distance: " << targetDist << " PrevDist: " << distances[targetPos.i][targetPos.j] << endl;
-      // cerr << "Content: " << mapC[targetPos.i][targetPos.j] << endl;
+ 
+      // cerr << "Target Pos: (" << targetPos.i << ',' << targetPos.j << "), Distance: " << targetDist << " PrevDist: " << distances[targetPos.i][targetPos.j] << " Content: " << mapC[targetPos.i][targetPos.j] << endl;
+
       // If we are going to an already targeted position (but we are closer), put the unit that was going there to recalculate its movement
       if (distances[targetPos.i][targetPos.j] != -1) {
-        nextMovements.erase(ids[targetPos.i][targetPos.j]);
+        if (mapC[targetPos.i][targetPos.j] == cEnemy and distances[targetPos.i][targetPos.j] == 2) lastMovements.erase(ids[targetPos.i][targetPos.j]);
+        else nextMovements.erase(ids[targetPos.i][targetPos.j]);
         set_units.insert(ids[targetPos.i][targetPos.j]);
         // cerr << "targeted" << endl;
       }
 
       if (mapC[targetPos.i][targetPos.j] == cEnemy and targetDist <= 3) {
-        if (targetDist == 1) firstMovements.push_back(m);
-        else if (targetDist == 2) lastMovements.push_back(m);
+        if (targetDist == 1) firstMovements.insert({id, d});
+        else if (targetDist == 2) lastMovements.insert({id, d});
         // If dist == 3, do not move
         // cerr << "enemy opti" << endl;
       }
@@ -306,22 +296,18 @@ struct PLAYER_NAME : public Player {
         if (d != DR) nextMovements.insert({id, d});
         // cerr << "zombie opti" << endl;
       }
-      else if (mapC[targetPos.i][targetPos.j] == cFood and targetDist == 1) firstMovements.push_back(m);
+      else if (mapC[targetPos.i][targetPos.j] == cFood and targetDist == 1) firstMovements.insert({id, d});
       else nextMovements.insert({id, d});
       // Update values
       ids[targetPos.i][targetPos.j] = id;
       distances[targetPos.i][targetPos.j] = targetDist;
     }
     // First commands
-    for (auto movement : firstMovements) move(movement.id, movement.d);
+    for (auto movement : firstMovements) move(movement.first, movement.second);
     // Next commands
-    for (auto movement : nextMovements) {
-      int id = movement.first;
-      Dir d = movement.second;
-      move(id, d);
-    }
+    for (auto movement : nextMovements) move(movement.first, movement.second);
     // Last commands
-    for (auto movement : lastMovements) move(movement.id, movement.d);
+    for (auto movement : lastMovements) move(movement.first, movement.second);
   }
 
   virtual void play () {
