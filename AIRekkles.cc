@@ -199,11 +199,11 @@ struct PLAYER_NAME : public Player {
     return possDirs[0];
   }
 
-  Dir zombieBestMove(const Pos& unitPos, const Pos& zombiePos, int dist, Dir d) {
+  Dir zombieBestMove(const Pos& unitPos, const Pos& zombiePos, int dist, Dir d, int roundsForZombie) {
     if (dist == 1) return d;
     int a = zombiePos.i - unitPos.i;
     int b = zombiePos.j- unitPos.j;
-    if (dist == 2) {
+    if (dist == 2 and roundsForZombie == -1) {
       vector<Dir> possDirs;
       // Zombie in a straight line case
       if (a == 0) {
@@ -296,7 +296,7 @@ struct PLAYER_NAME : public Player {
         // If dist == 3, do not move
       }
       else if (mapC[targetPos.i][targetPos.j] == cZombie) {
-        d = zombieBestMove(u.pos, targetPos, targetDist, d);
+        d = zombieBestMove(u.pos, targetPos, targetDist, d, u.rounds_for_zombie);
         if (d != DR) nextMovements.insert({id, d});
       }
       else if (mapC[targetPos.i][targetPos.j] == cFood and targetDist == 1) firstMovements.push_back(m);
