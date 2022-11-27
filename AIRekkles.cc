@@ -193,6 +193,61 @@ struct PLAYER_NAME : public Player {
     return findClosestUnit(u, distances, visited, q, targetPos, targetDist);
   }
   
+  Dir getRandomDir(vector<Dir>& possDirs) {
+    if (possDirs.size() == 1) return possDirs[0];
+    random_shuffle(possDirs.begin(), possDirs.end());
+    return possDirs[0];
+  }
+
+  Dir zombieBestMove(const Pos& unitPos, const Pos& zombiePos, int dist, Dir d) {
+    if (dist == 1) return d;
+    int a = zombiePos.i - unitPos.i;
+    int b = zombiePos.j- unitPos.j;
+    if (dist == 2) {
+      vector<Dir> possDirs;
+      // Zombie in a straight line case
+      if (a == 0) {
+        if (posOk(unitPos + Up) and not isPosDead(unitPos + Up)) possDirs.push_back(Up);
+        if (posOk(unitPos + Down) and not isPosDead(unitPos + Down)) possDirs.push_back(Down);
+        if (possDirs.size() != 0) return getRandomDir(possDirs);    // RANDOM: Get either of them. IMPROVE -> BFS and make a thoughtful decision
+        // Do not move
+        return DR;
+      }
+      if (b == 0) {
+        if (posOk(unitPos + Right) and not isPosDead(unitPos + Right)) possDirs.push_back(Right);
+        if (posOk(unitPos + Left) and not isPosDead(unitPos + Left)) possDirs.push_back(Left);
+        if (possDirs.size() != 0) return getRandomDir(possDirs);    // RANDOM: Get either of them. IMPROVE -> BFS and make a thoughtful decision
+        // Do not move
+        return DR;
+      }
+      // Zombie in a diagonal case
+      if (a == 1 and posOk(unitPos + Up) and not isPosDead(unitPos + Up)) possDirs.push_back(Up);
+      else if (a == -1 and posOk(unitPos + Down) and not isPosDead(unitPos + Down)) possDirs.push_back(Down);
+      if (b == 1 and posOk(unitPos + Left) and not isPosDead(unitPos + Left)) possDirs.push_back(Left);
+      else if (b == -1 and posOk(unitPos + Right) and not isPosDead(unitPos + Right)) possDirs.push_back(Right);
+      if (possDirs.size() != 0) return getRandomDir(possDirs);    // RANDOM: Get either of them. IMPROVE -> BFS and make a thoughtful decision
+      return d;
+    }
+    if (dist == 3 and ((abs(a) == 1 and abs(b) == 2) or (abs(a) == 2 and abs(b) == 1))) {
+      if (a == -1 and posOk(unitPos + Up)) return Up;
+      if (a == 1 and posOk(unitPos + Down)) return Down;
+      if (b == -1 and posOk(unitPos + Right)) return Right;
+      if (b == 1 and posOk(unitPos + Left)) return Left;
+      // Do not move
+      return DR;
+    }
+    // General case: Go to greatest x or y position. If cannot, go to d.
+    if (abs(a) > abs(b)) {
+      if (a > 0 and posOk(unitPos + Down) and not isPosDead(unitPos + Down)) return Down;
+      if (a < 0 and posOk(unitPos + Up) and not isPosDead(unitPos + Up)) return Up;
+    }
+    else if (abs(a) < abs(b)) {
+      if (b > 0 and posOk(unitPos + Right) and not isPosDead(unitPos + Right)) return Right;
+      if (b < 0 and posOk(unitPos + Left) and not isPosDead(unitPos + Left)) return Left;
+    }
+    return d;
+  }
+
   struct Movement {
     int id;
     Dir d;
@@ -239,6 +294,10 @@ struct PLAYER_NAME : public Player {
         if (targetDist == 1) firstMovements.push_back(m);
         else if (targetDist == 2) lastMovements.push_back(m);
         // If dist == 3, do not move
+      }
+      else if (mapC[targetPos.i][targetPos.j] == cZombie) {
+        d = zombieBestMove(u.pos, targetPos, targetDist, d);
+        if (d != DR) nextMovements.insert({id, d});
       }
       else if (mapC[targetPos.i][targetPos.j] == cFood and targetDist == 1) firstMovements.push_back(m);
       else nextMovements.insert({id, d});
