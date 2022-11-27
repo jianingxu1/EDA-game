@@ -126,6 +126,9 @@ struct PLAYER_NAME : public Player {
       // If it is already targeted, only go if your distance is less
       if (distances[p.i][p.j] != -1) {
         if (dist < distances[p.i][p.j]) {
+          // cerr << dist << " " << distances[p.i][p.j] << endl;
+          // If we have enough units to perform suprise attacks at distance 2, do not replace
+          if (mapC[targetPos.i][targetPos.j] == cEnemy and distances[targetPos.i][targetPos.j] == 2 and units.size() >= 15) continue;
           targetPos = p;
           targetDist = dist;
           return d;
@@ -175,7 +178,7 @@ struct PLAYER_NAME : public Player {
       Pos newPos = u.pos + d;
       if (posOk(newPos)) {
         // If there's an enemy next to us, prioritize movement to kill him.
-        if (mapC[newPos.i][newPos.j] == cEnemy) {
+        if (mapC[newPos.i][newPos.j] == cEnemy and distances[newPos.i][newPos.j] != -1) {
           targetPos = newPos;
           targetDist = 1;
           return d;
@@ -275,7 +278,7 @@ struct PLAYER_NAME : public Player {
       auto it = set_units.begin();
       int id = *it;
       set_units.erase(it);
-
+      // cerr << "unit id: " << id << endl;
       Unit u = unit(id);
       Pos targetPos;
       int targetDist;
@@ -283,21 +286,25 @@ struct PLAYER_NAME : public Player {
       Movement m;
       m.id = id;
       m.d = d;
-
+      // cerr << "Target Pos: (" << u.pos.i << ',' << u.pos.j << "), Distance: " << targetDist << " PrevDist: " << distances[targetPos.i][targetPos.j] << endl;
+      // cerr << "Content: " << mapC[targetPos.i][targetPos.j] << endl;
       // If we are going to an already targeted position (but we are closer), put the unit that was going there to recalculate its movement
       if (distances[targetPos.i][targetPos.j] != -1) {
         nextMovements.erase(ids[targetPos.i][targetPos.j]);
         set_units.insert(ids[targetPos.i][targetPos.j]);
+        // cerr << "targeted" << endl;
       }
 
       if (mapC[targetPos.i][targetPos.j] == cEnemy and targetDist <= 3) {
         if (targetDist == 1) firstMovements.push_back(m);
         else if (targetDist == 2) lastMovements.push_back(m);
         // If dist == 3, do not move
+        // cerr << "enemy opti" << endl;
       }
       else if (mapC[targetPos.i][targetPos.j] == cZombie) {
         d = zombieBestMove(u.pos, targetPos, targetDist, d, u.rounds_for_zombie);
         if (d != DR) nextMovements.insert({id, d});
+        // cerr << "zombie opti" << endl;
       }
       else if (mapC[targetPos.i][targetPos.j] == cFood and targetDist == 1) firstMovements.push_back(m);
       else nextMovements.insert({id, d});
