@@ -303,7 +303,6 @@ struct PLAYER_NAME : public Player {
         if (d != DR) nextMovements.insert({id, d});
         // cerr << "zombie opti" << endl;
       }
-      else if (mapC[targetPos.i][targetPos.j] == cFood and targetDist == 1) firstMovements.insert({id, d});
       else nextMovements.insert({id, d});
       // Update values
       ids[targetPos.i][targetPos.j] = id;
