@@ -119,10 +119,7 @@ struct PLAYER_NAME : public Player {
       Dir d = q.front().d;
       int dist = q.front().dist;
       q.pop();
-
-      if (visited[p.i][p.j]) continue;
       visited[p.i][p.j] = true;
-      if (mapC[p.i][p.j] == cWaste) continue;
       // If it is already targeted, only go if your distance is less
       if (distances[p.i][p.j] != -1) {
         if (dist < distances[p.i][p.j]) {
@@ -160,7 +157,7 @@ struct PLAYER_NAME : public Player {
       random_shuffle(dirs.begin(), dirs.end());
       for (auto dir : dirs) {
         Pos newPos = p + dir;
-        if (pos_ok(newPos) and not visited[newPos.i][newPos.j]) q.push({newPos, d, dist + 1});
+        if (posOk(newPos) and not visited[newPos.i][newPos.j]) q.push({newPos, d, dist + 1});
       }
     }
     return dirToEmptyCell;
@@ -171,7 +168,6 @@ struct PLAYER_NAME : public Player {
     VVB visited(n, VB(n, false));
     queue<targetPosition> q;
     visited[u.pos.i][u.pos.j] = true;
-
     // Initial movements
     random_shuffle(dirs.begin(), dirs.end());
     for (auto d : dirs) {
@@ -186,7 +182,6 @@ struct PLAYER_NAME : public Player {
         q.push({newPos, d, 1});
       }
     }
-
     // If only one direction is possible, go there
     if (q.size() == 1) {
       targetPos = q.front().p;
@@ -239,7 +234,7 @@ struct PLAYER_NAME : public Player {
       // Do not move
       return DR;
     }
-    // General case: Go to greatest x or y position. If cannot, go to d.
+    // General case: Go to greatest x or y position to let zombie to move diagonally. If cannot, go to d.
     if (abs(a) > abs(b)) {
       if (a > 0 and posOk(unitPos + Down) and not isPosDead(unitPos + Down)) return Down;
       if (a < 0 and posOk(unitPos + Up) and not isPosDead(unitPos + Up)) return Up;
