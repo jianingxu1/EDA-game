@@ -5,7 +5,6 @@
  */
 #define PLAYER_NAME Rekkles
 
-
 struct PLAYER_NAME : public Player {
 
   /**
@@ -246,6 +245,16 @@ struct PLAYER_NAME : public Player {
     return d;
   }
 
+  string CCToString(CellContent content) {
+    if (content == cDead) return "Dead";
+    else if (content == cEnemy) return "Enemy";
+    else if (content == cFood) return "Food";
+    else if (content == cEmptyNotOwned) return "EmptyNotOwned";
+    else if (content == cZombie) return "Zombie";
+    else if (content == cUnit) return "Ally";
+    return "EmptyOwned";
+  }
+
   void moveUnits() {
     // Contains first movements to perform
     map<int, Dir> firstMovements;
@@ -265,12 +274,15 @@ struct PLAYER_NAME : public Player {
       Unit u = unit(id);
       Pos targetPos;
       int targetDist;
-
-      // cerr << "ID: " << id << endl;
-
       Dir d = findNextMove(u, distances, targetPos, targetDist);
- 
-      // cerr << "Target Pos: (" << targetPos.i << ',' << targetPos.j << "), Distance: " << targetDist << " PrevDist: " << distances[targetPos.i][targetPos.j] << " Content: " << mapC[targetPos.i][targetPos.j] << endl;
+
+      // Debugging
+      // if (round() >= 53 and round() <= 57) {
+      //   if (u.pos.i > 45 and u.pos.j < 20) {
+      //     cerr << "ID: " << id << "\tCurrent Position: (" << u.pos.i << ", " << u.pos.j << ")" << endl;
+      //     cerr << "\tTarget Pos: (" << targetPos.i << ", " << targetPos.j << ")\tDistance: " << targetDist << "\tPrevDist: " << distances[targetPos.i][targetPos.j] << "\tContent: " << CCToString(mapC[targetPos.i][targetPos.j]) << endl;
+      //   }
+      // }
 
       // If we are going to an already targeted position (but we are closer), put the unit that was going there to recalculate its movement
       if (distances[targetPos.i][targetPos.j] != -1) {
@@ -280,7 +292,7 @@ struct PLAYER_NAME : public Player {
         // cerr << "targeted" << endl;
       }
 
-      if (mapC[targetPos.i][targetPos.j] == cEnemy and targetDist <= 3) {
+      if (mapC[targetPos.i][targetPos.j] == cEnemy and targetDist <= 2) {
         if (targetDist == 1) firstMovements.insert({id, d});
         else if (targetDist == 2) lastMovements.insert({id, d});
         // If dist == 3, do not move
