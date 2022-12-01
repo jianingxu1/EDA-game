@@ -125,6 +125,7 @@ struct PLAYER_NAME : public Player {
           // cerr << dist << " " << distances[p.i][p.j] << endl;
           // If we have enough units to perform suprise attacks at distance 2, do not replace
           if (mapC[targetPos.i][targetPos.j] == cEnemy and distances[p.i][p.j] == 2 and units.size() >= 15) continue;
+          if (mapC[p.i][p.j] == cDead and dist < unit(cell({p.i, p.j}).id).rounds_for_zombie) continue;
           targetPos = p;
           targetDist = dist;
           return d;
