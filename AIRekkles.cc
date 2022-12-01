@@ -102,7 +102,7 @@ struct PLAYER_NAME : public Player {
 
   // Returns true if there is a dead unit in position <p>
   bool isPosDead(const Pos& p) {
-    return mapC[p.i][p.j] == cWaste;
+    return mapC[p.i][p.j] == cDead;
   }
 
   // Returns Dir and Pos to the closest Food, Zombie or Enemy.
