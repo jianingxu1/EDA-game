@@ -107,60 +107,78 @@ struct PLAYER_NAME : public Player {
   // Returns Dir and Pos to the closest Food, Zombie or Enemy.
   // If it does not find any, returns Dir and Pos of first available cell or first empty not owned cell.
   Dir findClosestUnit(const Unit& u, const VVI& distances, VVB& visited, queue<targetPosition>& q, Pos& targetPos, int& targetDist) {
-    max_bfs = 20;
-    // If we don't find anything, go to the first available cell or first empty not owned cell
+    targetPosition firstEmpty = q.front();
     bool found = false;
-    targetPos = q.front().p;
-    Dir dirToEmptyCell = q.front().d;
-    targetDist = q.front().dist;
-    while (not q.empty() and (max_bfs != q.front().dist or not found)) {
+    max_bfs = 20;
+    bool isInfected = u.rounds_for_zombie != -1;
+    int stepsPossibleAsZombie = u.rounds_for_zombie;
+    if (isInfected) max_bfs = stepsPossibleAsZombie*2.5 + 1;
+    // If we don't find anything, go to the first available cell or first empty not owned cell
+    while (not q.empty()) {
       Pos p = q.front().p;
       Dir d = q.front().d;
       int dist = q.front().dist;
       q.pop();
+      CellContent content = mapC[p.i][p.j];
+      if (visited[p.i][p.j]) continue;
       visited[p.i][p.j] = true;
-      // If it is already targeted, only go if your distance is less
-      if (distances[p.i][p.j] != -1) {
-        if (dist < distances[p.i][p.j]) {
-          // cerr << dist << " " << distances[p.i][p.j] << endl;
-          // If we have enough units to perform suprise attacks at distance 2, do not replace
-          if (mapC[targetPos.i][targetPos.j] == cEnemy and distances[p.i][p.j] == 2 and units.size() >= 15) continue;
-          if (mapC[p.i][p.j] == cDead and dist < unit(cell({p.i, p.j}).id).rounds_for_zombie) continue;
-          targetPos = p;
-          targetDist = dist;
+      targetPos = p;
+      targetDist = dist;
+      bool isTargeted = distances[p.i][p.j] != -1;
+      int prevDist = distances[p.i][p.j];
+      // If continue, treat it as a wall and stop searching there
+      // If break, do not go there but continue searching
+      // Else, go there
+      switch(content) {
+        case cWaste: continue;
+        case cEnemy:
+          if (isInfected and dist > 2*stepsPossibleAsZombie) continue;
+          if (isTargeted) {
+            if (dist >= prevDist) break;
+            // If the unit going there is doing a counterattack and we have a lot of units, do not replace
+            else if (prevDist == 2 and units.size() >= 15) break;
+          }
           return d;
-        }
-        continue;
-      }
-      if (mapC[p.i][p.j] == cFood or mapC[p.i][p.j] == cZombie or mapC[p.i][p.j] == cEnemy) {
-        targetPos = p;
-        targetDist = dist;
-        return d;
-      }
-      if (mapC[p.i][p.j] == cDead) {
-        // If we arrive 1 step early, just at time or later: GO
-        if (dist >= unit(cell({p.i, p.j}).id).rounds_for_zombie) {
-          targetPos = p;
-          targetDist = dist;
+        case cZombie:
+          if (isInfected and dist > 2.5*stepsPossibleAsZombie) continue;
+          if (isTargeted and dist >= prevDist) break;
           return d;
-        }
-        continue;
-      }
-      // Find first not owned empty cell
-      if (not found and mapC[p.i][p.j] == cEmptyNotOwned) {
-        dirToEmptyCell = d;
-        targetPos = p;
-        targetDist = dist;
-        found = true;
+        case cFood:
+          if (isInfected and dist > stepsPossibleAsZombie) continue;
+          if (isTargeted and dist >= prevDist) break;
+          return d;
+        case cDead:
+          if (isInfected and dist > stepsPossibleAsZombie) continue;
+          if (isTargeted and dist >= prevDist) break;
+          if (dist < unit(cell({p.i, p.j}).id).rounds_for_zombie) {
+            max_bfs = 2*unit(cell({p.i, p.j}).id).rounds_for_zombie;
+            continue;
+          }
+          // If we arrive 1 step early, just at time or later: GO
+          return d;
+        case cEmptyNotOwned:
+          if (isInfected and dist > stepsPossibleAsZombie) continue;
+          if (isTargeted and dist >= prevDist) break;
+          // Find first not owned empty cell
+          if (not found) {
+            firstEmpty.d = d;
+            firstEmpty.p = p;
+            firstEmpty.dist = dist;
+            found = true;
+          }
+          break;
+        default: break;
       }
       // Check all four directions in a random order
       random_shuffle(dirs.begin(), dirs.end());
       for (auto dir : dirs) {
         Pos newPos = p + dir;
-        if (posOk(newPos) and not visited[newPos.i][newPos.j]) q.push({newPos, d, dist + 1});
+        if (pos_ok(newPos) and not visited[newPos.i][newPos.j]) q.push({newPos, d, dist + 1});
       }
     }
-    return dirToEmptyCell;
+    targetPos = firstEmpty.p;
+    targetDist = firstEmpty.dist;
+    return firstEmpty.d;
   }
 
   // Mark position as Targeted and return the direction to go there
@@ -168,6 +186,7 @@ struct PLAYER_NAME : public Player {
     VVB visited(n, VB(n, false));
     queue<targetPosition> q;
     visited[u.pos.i][u.pos.j] = true;
+
     // Initial movements
     random_shuffle(dirs.begin(), dirs.end());
     for (auto d : dirs) {
@@ -182,6 +201,7 @@ struct PLAYER_NAME : public Player {
         q.push({newPos, d, 1});
       }
     }
+
     // If only one direction is possible, go there
     if (q.size() == 1) {
       targetPos = q.front().p;
@@ -234,7 +254,7 @@ struct PLAYER_NAME : public Player {
       // Do not move
       return DR;
     }
-    // General case: Go to greatest x or y position to let zombie to move diagonally. If cannot, go to d.
+    // General case: Go to greatest x or y position. If cannot, go to d.
     if (abs(a) > abs(b)) {
       if (a > 0 and posOk(unitPos + Down) and not isPosDead(unitPos + Down)) return Down;
       if (a < 0 and posOk(unitPos + Up) and not isPosDead(unitPos + Up)) return Up;
@@ -278,8 +298,8 @@ struct PLAYER_NAME : public Player {
       Dir d = findNextMove(u, distances, targetPos, targetDist);
 
       // Debugging
-      // if (round() >= 53 and round() <= 57) {
-      //   if (u.pos.i > 45 and u.pos.j < 20) {
+      // if (round() >= 123 and round() <= 130) {
+      //   if (u.pos.i > 15 and u.pos.i < 30 and u.pos.j > 50) {
       //     cerr << "ID: " << id << "\tCurrent Position: (" << u.pos.i << ", " << u.pos.j << ")" << endl;
       //     cerr << "\tTarget Pos: (" << targetPos.i << ", " << targetPos.j << ")\tDistance: " << targetDist << "\tPrevDist: " << distances[targetPos.i][targetPos.j] << "\tContent: " << CCToString(mapC[targetPos.i][targetPos.j]) << endl;
       //   }
