@@ -44,7 +44,7 @@ struct PLAYER_NAME : public Player {
 
 
   const int n = 60;
-  int max_bfs = 20;
+  int max_bfs;
   vector<Dir> dirs = {Up, Down, Left, Right};
 
   VI units;                   // Vector that contains my units
@@ -109,7 +109,7 @@ struct PLAYER_NAME : public Player {
   Dir findClosestUnit(const Unit& u, const VVI& distances, VVB& visited, queue<targetPosition>& q, Pos& targetPos, int& targetDist) {
     targetPosition firstEmpty = q.front();
     bool found = false;
-    max_bfs = 20;
+    max_bfs = 50;
     bool isInfected = u.rounds_for_zombie != -1;
     int stepsPossibleAsZombie = u.rounds_for_zombie;
     if (isInfected) max_bfs = stepsPossibleAsZombie*2.5 + 1;
