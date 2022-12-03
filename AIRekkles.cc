@@ -114,7 +114,7 @@ struct PLAYER_NAME : public Player {
     int stepsPossibleAsZombie = u.rounds_for_zombie;
     if (isInfected) max_bfs = stepsPossibleAsZombie*2.5 + 1;
     // If we don't find anything, go to the first available cell or first empty not owned cell
-    while (not q.empty()) {
+    while (not q.empty() and max_bfs >= q.front().dist) {
       Pos p = q.front().p;
       Dir d = q.front().d;
       int dist = q.front().dist;
