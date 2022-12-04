@@ -109,7 +109,7 @@ struct PLAYER_NAME : public Player {
   Dir findClosestUnit(const Unit& u, const VVI& distances, VVB& visited, queue<targetPosition>& q, Pos& targetPos, int& targetDist) {
     targetPosition firstEmpty = q.front();
     bool found = false;
-    max_bfs = 50;
+    // max_bfs = 50;
     bool isInfected = u.rounds_for_zombie != -1;
     int stepsPossibleAsZombie = u.rounds_for_zombie;
     if (isInfected) max_bfs = stepsPossibleAsZombie*2.5 + 1;
@@ -277,6 +277,9 @@ struct PLAYER_NAME : public Player {
   }
 
   void moveUnits() {
+    if (units.size() <= 40) max_bfs = 50;
+    else if (units.size() <= 60) max_bfs = 30;
+    else max_bfs = 20;
     // Contains first movements to perform
     map<int, Dir> firstMovements;
     // Contains last movements to perform
@@ -338,6 +341,8 @@ struct PLAYER_NAME : public Player {
   }
 
   virtual void play () {
+    double st = status(me());
+    if (st >= 0.9) return;
     getRoundData();
     moveUnits();
   }
