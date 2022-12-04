@@ -109,6 +109,20 @@ struct PLAYER_NAME : public Player {
     return mapC[p.i][p.j] == cDead;
   }
 
+  // check 9x9
+  bool isContentClose(const Pos& p, CellContent content, Pos& contentPos) {
+    for (int i = p.i - 1; i <= p.i + 1; ++i) {
+      for (int j = p.j - 1; j <= p.j + 1; ++j) {
+        if (pos_ok(i, j) and mapC[i][j] == content) {
+          contentPos.i = i;
+          contentPos.j = j;
+          return true;
+        }
+      }
+    }
+    return false;
+  }  
+
   struct Compare {
     bool operator() (const PositionValue& a, const PositionValue& b) {
       if (a.value != b.value) return a.value < b.value;
@@ -174,6 +188,7 @@ struct PLAYER_NAME : public Player {
           if (isInfected and dist > stepsPossibleAsZombie) continue;
           if (isTargeted and dist >= prevDist) break;
           targets.push({target, 25-dist});
+          break;
         case cDead:
           if (isInfected and dist > stepsPossibleAsZombie) continue;
           if (isTargeted and dist >= prevDist) break;
@@ -325,7 +340,26 @@ struct PLAYER_NAME : public Player {
         d = zombieBestMove(u.pos, targetPos, targetDist, d, u.rounds_for_zombie);
         if (d != DR) nextMovements.insert({id, d});
       }
-      else nextMovements.insert({id, d});
+      else if (mapC[targetPos.i][targetPos.j] == cFood) {
+        Pos newPos = u.pos + d;
+        Pos contentPos;
+        // If Zombie near our next move, adapt move to not get infected
+        if (isContentClose(newPos, cZombie, contentPos)) {
+          int contentDist = abs(u.pos.i-contentPos.i) + abs(u.pos.j-contentPos.j);
+          d = zombieBestMove(u.pos, contentPos, contentDist, d, u.rounds_for_zombie);
+        }
+        nextMovements.insert({id, d});
+      }
+      else {
+        // If Zombie near our next move, adapt move to not get infected
+        Pos newPos = u.pos + d;
+        Pos contentPos;
+        if (isContentClose(newPos, cZombie, contentPos)) {
+          int contentDist = abs(u.pos.i-contentPos.i) + abs(u.pos.j-contentPos.j);
+          d = zombieBestMove(u.pos, contentPos, contentDist, d, u.rounds_for_zombie);
+        }
+        nextMovements.insert({id, d});
+      }
       // Update values
       ids[targetPos.i][targetPos.j] = id;
       distances[targetPos.i][targetPos.j] = targetDist;
