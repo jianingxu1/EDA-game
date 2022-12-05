@@ -172,9 +172,9 @@ struct PLAYER_NAME : public Player {
             int enemyStr = strength(unit(cell(p).id).player);
             double probability = double(str)/(double(str)+double(enemyStr));
             double totalProbability = probability + 0.3;
-            if (probability >= 0.75) targets.push({target, 20-dist});
+            if (probability >= 0.75) targets.push({target, 15-dist});
             else if (probability >= 0.5) targets.push({target, 10-dist});
-            else if (probability >= 0.286) targets.push({target, 3-dist});
+            else if (probability >= 0.286) targets.push({target, 4-dist});
             else continue;
           }
           break;
@@ -187,7 +187,7 @@ struct PLAYER_NAME : public Player {
         case cFood:
           if (isInfected and dist > stepsPossibleAsZombie) continue;
           if (isTargeted and dist >= prevDist) break;
-          targets.push({target, 25-dist});
+          targets.push({target, 23-dist});
           break;
         case cDead:
           if (isInfected and dist > stepsPossibleAsZombie) continue;
@@ -197,7 +197,7 @@ struct PLAYER_NAME : public Player {
             continue;
           }
           // If we arrive 1 step early, just at time or later: GO
-          targets.push({target, 5-dist});
+          targets.push({target, 7-dist});
           break;
         case cEmptyNotOwned:
           if (isInfected and dist > stepsPossibleAsZombie) continue;
