@@ -118,9 +118,6 @@ struct PLAYER_NAME : public Player {
   };
   
   int calculatePriority(CellContent content, int targetDist) {
-    // if (content == ENEMY) {
-
-    // }
     if (content == ZOMBIE) {
       if (targetDist == 1) return 23 - targetDist;
       else return 5 - targetDist;
@@ -129,7 +126,7 @@ struct PLAYER_NAME : public Player {
       return 23 - targetDist;
     }
     else if (content == DEAD) {
-      return 10 - targetDist;  // change to 23?
+      return 12 - targetDist;  // change to 23?
     }
     return 0;
   }
@@ -176,8 +173,8 @@ struct PLAYER_NAME : public Player {
             int enemyStr = strength(unit(cell(p).id).player);
             double probability = double(str)/(double(str)+double(enemyStr));
             double totalProbability = probability + 0.3;
-            if (probability >= 0.75) targets.push({target, 15-dist});
-            else if (probability >= 0.63) targets.push({target, 12-dist});
+            if (probability >= 0.75) targets.push({target, 16-dist});
+            else if (probability >= 0.63) targets.push({target, 13-dist});
             else if (probability >= 0.5) targets.push({target, 10-dist});
             else if (probability >= 0.286) targets.push({target, 4-dist});
             else continue;
@@ -201,7 +198,7 @@ struct PLAYER_NAME : public Player {
           if (isTargeted and dist >= prevDist) break;
           // If we arrive 1 step early, just at time or later: GOs
           if (dist < unit(cell({p.i, p.j}).id).rounds_for_zombie) {
-            max_bfs = 2*unit(cell({p.i, p.j}).id).rounds_for_zombie;
+            max_bfs = 1.4*unit(cell({p.i, p.j}).id).rounds_for_zombie;
             continue;
           }
           priority = calculatePriority(content, dist);
