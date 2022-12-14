@@ -386,17 +386,22 @@ struct PLAYER_NAME : public Player {
         movements.erase(prevId);
         setMyUnits.insert(prevId);
       }
-      int priority = 5;
+      int priority = 10;
       if (content == ENEMY and targetDist <= 2) {
         if (targetDist == 1) priority = 1;
+        else if (targetDist == 2) priority = 20;
         else priority = 10;
         movements.insert({id, {priority, d}});
       }
       else if (content == ZOMBIE) {
+        if (targetDist == 1) priority = 2; // SWITCH TO 3?
+        else priority = 4;
         d = zombieBestMove(u, targetPos, targetDist, d);
         if (d != DR) movements.insert({id, {priority, d}});
       }
       else if (content == FOOD) {
+        if (targetDist == 1) priority = 3;  // SWITCH TO 2? OR GET FOOD EVEN IF ZOMBIE TARGETING the dist 1?
+        else priority = 10;
         Pos newPos = u.pos + d;
         Pos zombiePos;
         // If Zombie near our next move, adapt move to not get infected
@@ -407,10 +412,13 @@ struct PLAYER_NAME : public Player {
         movements.insert({id, {priority, d}});
       }
       else {
+        priority = 10;
         // If Zombie near our next move, adapt move to not get infected
         Pos newPos = u.pos + d;
         Pos zombiePos;
         if (isZombieClose(newPos, zombiePos)) {
+          // Prio escaping from zombie
+          priority = 4;
           int zombieDist = abs(u.pos.i-zombiePos.i) + abs(u.pos.j-zombiePos.j);
           d = zombieBestMove(u, zombiePos, zombieDist, d);
         }
