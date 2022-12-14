@@ -117,6 +117,22 @@ struct PLAYER_NAME : public Player {
     }
   };
   
+  int calculatePriority(CellContent content, int targetDist) {
+    // if (content == ENEMY) {
+
+    // }
+    if (content == ZOMBIE) {
+      if (targetDist == 1) return 23 - targetDist;
+      else return 5 - targetDist;
+    }
+    else if (content == FOOD) {
+      return 23 - targetDist;
+    }
+    else if (content == DEAD) {
+      return 10 - targetDist;  // change to 23?
+    }
+    return 0;
+  }
   // Returns Dir and Pos to the closest Food, Zombie or Enemy.
   // If it does not find any, returns Dir and Pos of first available cell or first empty not owned cell.
   TargetPosition findClosestUnit(const Unit& u, const VVI& distances, VVB& visited, queue<TargetPosition>& q) {
@@ -147,6 +163,7 @@ struct PLAYER_NAME : public Player {
       // If break, do not go there but continue searching
       // Else, put into priority queue
       CellContent content = board[p.i][p.j];
+      int priority;
       switch(content) {
         case WASTE: continue;
         case ENEMY:
@@ -160,6 +177,7 @@ struct PLAYER_NAME : public Player {
             double probability = double(str)/(double(str)+double(enemyStr));
             double totalProbability = probability + 0.3;
             if (probability >= 0.75) targets.push({target, 15-dist});
+            else if (probability >= 0.63) targets.push({target, 12-dist});
             else if (probability >= 0.5) targets.push({target, 10-dist});
             else if (probability >= 0.286) targets.push({target, 4-dist});
             else continue;
@@ -169,22 +187,25 @@ struct PLAYER_NAME : public Player {
           if (isInfected and dist > 2.5*stepsPossibleAsZombie) continue;
           if (isTargeted and dist >= prevDist) break;
           if (dist == 1 or dist == 2) return target;
-          targets.push({target, 5-dist});
+          priority = calculatePriority(content, dist);
+          targets.push({target, priority});
           break;
         case FOOD:
           if (isInfected and dist > stepsPossibleAsZombie) continue;
           if (isTargeted and dist >= prevDist) break;
-          targets.push({target, 23-dist});
+          priority = calculatePriority(content, dist);
+          targets.push({target, priority});
           break;
         case DEAD:
           if (isInfected and dist > stepsPossibleAsZombie) continue;
           if (isTargeted and dist >= prevDist) break;
+          // If we arrive 1 step early, just at time or later: GOs
           if (dist < unit(cell({p.i, p.j}).id).rounds_for_zombie) {
             max_bfs = 2*unit(cell({p.i, p.j}).id).rounds_for_zombie;
             continue;
           }
-          // If we arrive 1 step early, just at time or later: GO
-          targets.push({target, 7-dist});
+          priority = calculatePriority(content, dist);
+          targets.push({target, priority});
           break;
         case EMPTYNOTOWNED:
           if (isInfected and dist > stepsPossibleAsZombie) continue;
