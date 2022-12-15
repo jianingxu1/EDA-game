@@ -4,7 +4,7 @@
  * with the same name and .cc extension.
  */
 #define PLAYER_NAME Rekkles
-
+#define NOTMOVE DR
 struct PLAYER_NAME : public Player {
 
   /**
@@ -87,10 +87,14 @@ struct PLAYER_NAME : public Player {
     getMyUnits();
   }
 
-
   // Returns true if the position <p> is inside map and is not Waste
   bool posOk(const Pos& p) {
     return (pos_ok(p) and board[p.i][p.j] != WASTE);
+  }
+
+  // Returns true if the position (i, j) is inside map and is not Waste
+  bool posOk(int i, int j) {
+    return (pos_ok(i, j) and board[i][j] != WASTE);
   }
 
   // Returns true if there is a dead unit in position <p>
@@ -233,23 +237,19 @@ struct PLAYER_NAME : public Player {
   }
 
   // Mark position as Targeted and return the direction to go there
-  TargetPosition findNextMove(const Unit& u, const VVI& distances) {
+  TargetPosition findNextMove(const Unit& u, const VVI& distances, const vector<Dir>& availableDirs) {
     VVB visited(n, VB(n, false));
     queue<TargetPosition> q;
     visited[u.pos.i][u.pos.j] = true;
     // Initial movements
-    random_shuffle(dirs.begin(), dirs.end());
-    for (auto d : dirs) {
-      Pos newPos = u.pos + d;
-      if (posOk(newPos)) {
-        TargetPosition target;
-        target.p = newPos;
-        target.dist = 1;
-        target.d = d;
-        // If there's an enemy next to us, prioritize movement to kill him.
-        if (board[newPos.i][newPos.j] == ENEMY and distances[newPos.i][newPos.j] == -1) return target;
-        q.push(target);
-      }
+    for (auto dir : availableDirs) {  // TODO: randomize availableDirs order
+      TargetPosition target;
+      target.p = u.pos + dir;
+      target.dist = 1;
+      target.d = dir;
+      // If there's an enemy next to us, prioritize movement to kill him.
+      if (board[target.p.i][target.p.j] == ENEMY and distances[target.p.i][target.p.j] == -1) return target;
+      q.push(target);
     }
     // If only one direction is possible, go there
     if (q.size() == 1) return q.front();
@@ -276,6 +276,37 @@ struct PLAYER_NAME : public Player {
     return false;
   }  
 
+  // Returns true if there is a zombie close to position p (at distance 1 horizontally, vertically or diagonally)
+  bool isPosAttacked(const Pos& p) {
+    for (int i = p.i - 1; i <= p.i + 1; ++i) {
+      for (int j = p.j - 1; j <= p.j + 1; ++j) {
+        if ((i != p.i or j != p.j) and pos_ok(i, j)) {
+          if (board[i][j] == ZOMBIE) return true;
+        }
+      }
+    }
+    return false;
+  } 
+
+  // Returns the directions that are inside the board and are not waste
+  void getAvailableDirs(const Unit& u, vector<Dir>& availableDirs) {
+    random_shuffle(dirs.begin(), dirs.end());
+    for (Dir dir : dirs) {
+      if (posOk(u.pos + dir)) availableDirs.push_back(dir);
+    }
+  }
+  set<Dir> getNotAttackedDirs(const Unit& u, const vector<Dir>& availableDirs) {
+    set<Dir> notAttackedDirs;
+    for (auto dir : availableDirs) {
+      Pos newPos = u.pos + dir;
+      if (not isPosAttacked(u.pos + dir)) {
+        notAttackedDirs.insert(dir);
+      }
+    }
+    if (not isPosAttacked(u.pos)) notAttackedDirs.insert(NOTMOVE);
+    return notAttackedDirs;
+  }
+
   Dir zombieBestMove(const Unit& u, const Pos& zombiePos, int dist, Dir d) {
     if (dist == 1) return d;
     Pos unitPos = u.pos;
@@ -289,14 +320,14 @@ struct PLAYER_NAME : public Player {
         if (posOk(unitPos + Down) and not isPosDead(unitPos + Down)) possDirs.push_back(Down);
         if (possDirs.size() != 0) return getRandomDir(possDirs);    // RANDOM: Get either of them. IMPROVE -> BFS and make a thoughtful decision
         // Do not move
-        return DR;
+        return NOTMOVE;
       }
       if (b == 0) {
         if (posOk(unitPos + Right) and not isPosDead(unitPos + Right)) possDirs.push_back(Right);
         if (posOk(unitPos + Left) and not isPosDead(unitPos + Left)) possDirs.push_back(Left);
         if (possDirs.size() != 0) return getRandomDir(possDirs);    // RANDOM: Get either of them. IMPROVE -> BFS and make a thoughtful decision
         // Do not move
-        return DR;
+        return NOTMOVE;
       }
       // Zombie in a diagonal case
       if (a == 1 and posOk(unitPos + Up) and not isPosDead(unitPos + Up)) possDirs.push_back(Up);
@@ -312,7 +343,7 @@ struct PLAYER_NAME : public Player {
       if (b == -1 and posOk(unitPos + Right)) return Right;
       if (b == 1 and posOk(unitPos + Left)) return Left;
       // Do not move
-      return DR;
+      return NOTMOVE;
     }
     // General case: Go to greatest x or y position. If cannot, go to d.
     if (abs(a) > abs(b)) {
@@ -372,7 +403,11 @@ struct PLAYER_NAME : public Player {
       int id = *it;
       setMyUnits.erase(it);
       Unit u = unit(id);
-      TargetPosition target = findNextMove(u, distances);
+      
+      vector<Dir> availableDirs;
+      getAvailableDirs(u, availableDirs);
+
+      TargetPosition target = findNextMove(u, distances, availableDirs);
       Pos targetPos = target.p;
       int targetDist = target.dist;
       Dir d = target.d;
@@ -395,7 +430,15 @@ struct PLAYER_NAME : public Player {
         if (targetDist == 1) priority = 2; // SWITCH TO 3?
         else priority = 4;
         d = zombieBestMove(u, targetPos, targetDist, d);
-        if (d != DR) movements.insert({id, {priority, d}});
+        if (u.rounds_for_zombie == -1) {
+          set<Dir> notAttackedDirs = getNotAttackedDirs(u, availableDirs);
+          bool dirIsAttacked = notAttackedDirs.find(d) == notAttackedDirs.end();
+          if (notAttackedDirs.size() >= 1 and dirIsAttacked) {
+            if (notAttackedDirs.size() == 1) d = (*notAttackedDirs.begin());
+            else d = (*notAttackedDirs.begin());  // TODO if more than 1 available, BFS best move
+          }
+        }
+        if (d != NOTMOVE) movements.insert({id, {priority, d}});
       }
       else if (content == FOOD) {
         if (targetDist == 1) priority = 3;  // SWITCH TO 2? OR GET FOOD EVEN IF ZOMBIE TARGETING the dist 1?
