@@ -277,6 +277,18 @@ struct PLAYER_NAME : public Player {
   }  
 
   // Returns true if there is a zombie close to position p (at distance 1 horizontally, vertically or diagonally)
+  bool isPosAttacked(const Pos& p, const Pos& ignorePos) {
+    for (int i = p.i - 1; i <= p.i + 1; ++i) {
+      for (int j = p.j - 1; j <= p.j + 1; ++j) {
+        if ((i != p.i or j != p.j) and pos_ok(i, j)) {
+          if (board[i][j] == ZOMBIE and (i != ignorePos.i or j != ignorePos.j)) return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  // Returns true if there is a zombie close to position p (at distance 1 horizontally, vertically or diagonally)
   bool isPosAttacked(const Pos& p) {
     for (int i = p.i - 1; i <= p.i + 1; ++i) {
       for (int j = p.j - 1; j <= p.j + 1; ++j) {
@@ -298,7 +310,6 @@ struct PLAYER_NAME : public Player {
   set<Dir> getNotAttackedDirs(const Unit& u, const vector<Dir>& availableDirs) {
     set<Dir> notAttackedDirs;
     for (auto dir : availableDirs) {
-      Pos newPos = u.pos + dir;
       if (not isPosAttacked(u.pos + dir)) {
         notAttackedDirs.insert(dir);
       }
@@ -307,37 +318,70 @@ struct PLAYER_NAME : public Player {
     return notAttackedDirs;
   }
 
-  Dir zombieBestMove(const Unit& u, const Pos& zombiePos, int dist, Dir d) {
-    if (dist == 1) return d;
+  bool dirIsOkay(const Unit& u, Dir d, const set<Dir>& notAttackedDirs) {
+    return posOk(u.pos + Up) and not isPosDead(u.pos + Up) and notAttackedDirs.find(Up) != notAttackedDirs.end();
+  }
+
+  int priority;
+  Dir zombieBestMove(const Unit& u, const Pos& zombiePos, int dist, Dir d, const set<Dir>& notAttackedDirs) {
+    bool isInfected = u.rounds_for_zombie != -1;
+    if (dist == 1) {
+      if (isInfected or notAttackedDirs.empty() or not isPosAttacked(u.pos, zombiePos)) {
+        priority = 2;
+        return d;
+      }
+      priority = 4;
+      return *notAttackedDirs.begin();
+    }
     Pos unitPos = u.pos;
     int a = zombiePos.i - unitPos.i;
     int b = zombiePos.j- unitPos.j;
-    if (dist == 2 and u.rounds_for_zombie == -1) {
+    if (dist == 2) {
+      priority = 10;
+      if (isInfected) return d;
       vector<Dir> possDirs;
       // Zombie in a straight line case
       if (a == 0) {
-        if (posOk(unitPos + Up) and not isPosDead(unitPos + Up)) possDirs.push_back(Up);
-        if (posOk(unitPos + Down) and not isPosDead(unitPos + Down)) possDirs.push_back(Down);
-        if (possDirs.size() != 0) return getRandomDir(possDirs);    // RANDOM: Get either of them. IMPROVE -> BFS and make a thoughtful decision
+        if (dirIsOkay(u, Up, notAttackedDirs)) possDirs.push_back(Up);
+        if (dirIsOkay(u, Down, notAttackedDirs)) possDirs.push_back(Down);
+        if (not possDirs.empty()) return getRandomDir(possDirs);    // TODO: get best direction with BFS
         // Do not move
         return NOTMOVE;
       }
       if (b == 0) {
-        if (posOk(unitPos + Right) and not isPosDead(unitPos + Right)) possDirs.push_back(Right);
-        if (posOk(unitPos + Left) and not isPosDead(unitPos + Left)) possDirs.push_back(Left);
-        if (possDirs.size() != 0) return getRandomDir(possDirs);    // RANDOM: Get either of them. IMPROVE -> BFS and make a thoughtful decision
+        if (dirIsOkay(u, Right, notAttackedDirs)) possDirs.push_back(Right);
+        if (dirIsOkay(u, Left, notAttackedDirs)) possDirs.push_back(Left);
+        if (not possDirs.empty()) return getRandomDir(possDirs);    // TODO: get best direction with BFS
         // Do not move
         return NOTMOVE;
       }
+      priority = 2;
       // Zombie in a diagonal case
-      if (a == 1 and posOk(unitPos + Up) and not isPosDead(unitPos + Up)) possDirs.push_back(Up);
-      else if (a == -1 and posOk(unitPos + Down) and not isPosDead(unitPos + Down)) possDirs.push_back(Down);
-      if (b == 1 and posOk(unitPos + Left) and not isPosDead(unitPos + Left)) possDirs.push_back(Left);
-      else if (b == -1 and posOk(unitPos + Right) and not isPosDead(unitPos + Right)) possDirs.push_back(Right);
-      if (possDirs.size() != 0) return getRandomDir(possDirs);    // RANDOM: Get either of them. IMPROVE -> BFS and make a thoughtful decision
+      if (a == 1) {
+        if (dirIsOkay(u, Up, notAttackedDirs)) possDirs.push_back(Up);
+      }
+      else if (a == -1) {
+        if (dirIsOkay(u, Down, notAttackedDirs)) possDirs.push_back(Down);
+      }
+      if (b == 1) {
+        if (dirIsOkay(u, Left, notAttackedDirs)) possDirs.push_back(Left);
+      }
+      else if (b == -1) {
+        if (dirIsOkay(u, Right, notAttackedDirs)) possDirs.push_back(Right);
+      }
+      if (not possDirs.empty()) return getRandomDir(possDirs);    // TODO: get best direction with BFS
       return d;
     }
+    priority = 10;
     if (dist == 3 and ((abs(a) == 1 and abs(b) == 2) or (abs(a) == 2 and abs(b) == 1))) {
+      if (isInfected) {
+        if (a == -1 and dirIsOkay(u, Up, notAttackedDirs)) return Up;
+        if (a == 1 and dirIsOkay(u, Down, notAttackedDirs)) return Down;
+        if (b == -1 and dirIsOkay(u, Right, notAttackedDirs)) return Right;
+        if (b == 1 and dirIsOkay(u, Left, notAttackedDirs)) return Left;
+        // Do not move
+        return NOTMOVE;
+      }
       if (a == -1 and posOk(unitPos + Up)) return Up;
       if (a == 1 and posOk(unitPos + Down)) return Down;
       if (b == -1 and posOk(unitPos + Right)) return Right;
@@ -345,14 +389,27 @@ struct PLAYER_NAME : public Player {
       // Do not move
       return NOTMOVE;
     }
+
     // General case: Go to greatest x or y position. If cannot, go to d.
     if (abs(a) > abs(b)) {
-      if (a > 0 and posOk(unitPos + Down) and not isPosDead(unitPos + Down)) return Down;
-      if (a < 0 and posOk(unitPos + Up) and not isPosDead(unitPos + Up)) return Up;
+      if (isInfected) {
+        if (a > 0 and dirIsOkay(u, Down, notAttackedDirs)) return Down;
+        if (a < 0 and dirIsOkay(u, Up, notAttackedDirs)) return Up;
+      }
+      else {
+        if (a > 0 and posOk(unitPos + Down) and not isPosDead(unitPos + Down)) return Down;
+        if (a < 0 and posOk(unitPos + Up) and not isPosDead(unitPos + Up)) return Up;
+      }
     }
     else if (abs(a) < abs(b)) {
-      if (b > 0 and posOk(unitPos + Right) and not isPosDead(unitPos + Right)) return Right;
-      if (b < 0 and posOk(unitPos + Left) and not isPosDead(unitPos + Left)) return Left;
+      if (isInfected) {
+        if (b > 0 and dirIsOkay(u, Right, notAttackedDirs)) return Right;
+        if (b < 0 and dirIsOkay(u, Left, notAttackedDirs)) return Left;
+      }
+      else {
+        if (b > 0 and posOk(unitPos + Right) and not isPosDead(unitPos + Right)) return Right;
+        if (b < 0 and posOk(unitPos + Left) and not isPosDead(unitPos + Left)) return Left;
+      }
     }
     return d;
   }
@@ -419,7 +476,7 @@ struct PLAYER_NAME : public Player {
         movements.erase(prevId);
         setMyUnits.insert(prevId);
       }
-      int priority = 10;
+      priority = 10;
       if (content == ENEMY and targetDist <= 2) {
         if (targetDist == 1) priority = 1;
         else if (targetDist == 2) priority = 20;
@@ -427,17 +484,8 @@ struct PLAYER_NAME : public Player {
         movements.insert({id, {priority, d}});
       }
       else if (content == ZOMBIE) {
-        if (targetDist == 1) priority = 2; // SWITCH TO 3?
-        else priority = 4;
-        d = zombieBestMove(u, targetPos, targetDist, d);
-        if (u.rounds_for_zombie == -1) {
-          set<Dir> notAttackedDirs = getNotAttackedDirs(u, availableDirs);
-          bool dirIsAttacked = notAttackedDirs.find(d) == notAttackedDirs.end();
-          if (notAttackedDirs.size() >= 1 and dirIsAttacked) {
-            if (notAttackedDirs.size() == 1) d = (*notAttackedDirs.begin());
-            else d = (*notAttackedDirs.begin());  // TODO if more than 1 available, BFS best move
-          }
-        }
+        set<Dir> notAttackedDirs = getNotAttackedDirs(u, availableDirs);
+        d = zombieBestMove(u, targetPos, targetDist, d, notAttackedDirs);
         if (d != NOTMOVE) movements.insert({id, {priority, d}});
       }
       else if (content == FOOD) {
@@ -447,10 +495,13 @@ struct PLAYER_NAME : public Player {
         Pos zombiePos;
         // If Zombie near our next move, adapt move to not get infected
         if (isZombieClose(newPos, zombiePos)) {
+          set<Dir> notAttackedDirs = getNotAttackedDirs(u, availableDirs);
           int zombieDist = abs(u.pos.i-zombiePos.i) + abs(u.pos.j-zombiePos.j);
-          d = zombieBestMove(u, zombiePos, zombieDist, d);
+          d = zombieBestMove(u, zombiePos, zombieDist, d, notAttackedDirs);
+          targetPos = zombiePos;
+          targetDist = zombieDist;
         }
-        movements.insert({id, {priority, d}});
+        if (d != NOTMOVE) movements.insert({id, {priority, d}});
       }
       else {
         priority = 10;
@@ -458,12 +509,13 @@ struct PLAYER_NAME : public Player {
         Pos newPos = u.pos + d;
         Pos zombiePos;
         if (isZombieClose(newPos, zombiePos)) {
-          // Prio escaping from zombie
-          priority = 4;
+          set<Dir> notAttackedDirs = getNotAttackedDirs(u, availableDirs);
           int zombieDist = abs(u.pos.i-zombiePos.i) + abs(u.pos.j-zombiePos.j);
-          d = zombieBestMove(u, zombiePos, zombieDist, d);
+          d = zombieBestMove(u, zombiePos, zombieDist, d, notAttackedDirs);
+          targetPos = zombiePos;
+          targetDist = zombieDist;
         }
-        movements.insert({id, {priority, d}});
+        if (d != NOTMOVE) movements.insert({id, {priority, d}});
       }
       // Update values
       ids[targetPos.i][targetPos.j] = id;
