@@ -136,6 +136,7 @@ struct PLAYER_NAME : public Player {
     if (myUnits.size() <= 40) max_bfs = 50;
     else if (myUnits.size() <= 60) max_bfs = 30;
     else max_bfs = 20;
+    if (max_bfs > num_rounds() - round()) max_bfs = num_rounds() - round();
     TargetPosition firstEmpty = q.front();
     bool found = false;
 
