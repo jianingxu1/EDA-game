@@ -276,6 +276,7 @@ struct PLAYER_NAME : public Player {
     return false;
   }  
 
+  bool found = false;
   // Returns true if there is a zombie close to position p (at distance 1 horizontally, vertically or diagonally)
   bool isPosAttacked(const Pos& p, const Pos& ignorePos) {
     for (int i = p.i - 1; i <= p.i + 1; ++i) {
@@ -293,7 +294,9 @@ struct PLAYER_NAME : public Player {
     for (int i = p.i - 1; i <= p.i + 1; ++i) {
       for (int j = p.j - 1; j <= p.j + 1; ++j) {
         if ((i != p.i or j != p.j) and pos_ok(i, j)) {
-          if (board[i][j] == ZOMBIE) return true;
+          if (board[i][j] == ZOMBIE) {
+            return true;
+          }    
         }
       }
     }
@@ -319,7 +322,7 @@ struct PLAYER_NAME : public Player {
   }
 
   bool dirIsOkay(const Unit& u, Dir d, const set<Dir>& notAttackedDirs) {
-    return posOk(u.pos + Up) and not isPosDead(u.pos + Up) and notAttackedDirs.find(Up) != notAttackedDirs.end();
+    return posOk(u.pos + d) and not isPosDead(u.pos + d) and notAttackedDirs.find(d) != notAttackedDirs.end();
   }
 
   int priority;
@@ -389,7 +392,6 @@ struct PLAYER_NAME : public Player {
       // Do not move
       return NOTMOVE;
     }
-
     // General case: Go to greatest x or y position. If cannot, go to d.
     if (abs(a) > abs(b)) {
       if (isInfected) {
@@ -465,12 +467,14 @@ struct PLAYER_NAME : public Player {
       getAvailableDirs(u, availableDirs);
 
       TargetPosition target = findNextMove(u, distances, availableDirs);
+
       Pos targetPos = target.p;
       int targetDist = target.dist;
       Dir d = target.d;
       int content = board[targetPos.i][targetPos.j];
       int prevDist = distances[targetPos.i][targetPos.j];
       int prevId = ids[targetPos.i][targetPos.j];
+      
       // If we are going to an already targeted position (but we are closer), put the unit that was going there to recalculate its movement
       if (prevDist != -1) {
         movements.erase(prevId);
