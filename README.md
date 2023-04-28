@@ -1,4 +1,4 @@
-# 22-23Q1 EDA game tournament
+# 22-23Q1 EDA game
 
 This repository contains the source code of my AI player (`AIRekkles.cc`) which got into the finals of the tournament (out of 243 players).
 Furthermore, it includes the rules, files and some AI players of the game.
@@ -122,13 +122,13 @@ After running a game in either mode, there is the possibility to watch the game 
 
 To play multiple rounds automatically, you can use the `tester.cc` script. When all the rounds are played, the results will be printed. The results contain for each player, the number of games the player got 1st place, 2nd place... Moreover, it prints the average points obtained between all the rounds. It can be extremely useful to see how your player performs against others without the randomness that playing only one game has. To execute it:
 
-1. Copy the script to the [game](game) folder
+1. Copy the script to the `game` folder
 2. To compile the script:
 
 ```bash
 g++ -o tester tester.cc -pthread
 ```
-
+`
 3. To execute the script:
 
 ```bash
