@@ -4,7 +4,7 @@
  * with the same name and .cc extension.
  */
 #define PLAYER_NAME Rekkles
-
+#define NO_MOVE DR
 struct PLAYER_NAME : public Player {
 
   /**
@@ -25,8 +25,8 @@ struct PLAYER_NAME : public Player {
     ZOMBIE,              // A zombie is in the cell
     ENEMY,               // An enemy is in the cell
     UNIT,                // A friendly unit is in the cell
-    EMPTYOWNED,          // Cell is empty and owned by me
-    EMPTYNOTOWNED,       // Cell is empty and not owned by me (owned by another player or not owned by anyone)
+    EMPTY_OWNED,          // Cell is empty and owned by me
+    EMPTY_NOT_OWNED,       // Cell is empty and not owned by me (owned by another player or not owned by anyone)
   };
   
   typedef vector<int> VI;
@@ -42,7 +42,7 @@ struct PLAYER_NAME : public Player {
   typedef vector<CellContent> VC;
   typedef vector<VC> VVC;
 
-  const int n = 60;
+  const int n = 60;     // Board size is n x n
   int max_bfs;
   vector<Dir> dirs = {Up, Down, Left, Right};
 
@@ -58,8 +58,8 @@ struct PLAYER_NAME : public Player {
     if (cell.food) return FOOD;
     // An empty cell
     if (cell.id == -1) {
-      if (cell.owner != me()) return EMPTYNOTOWNED;
-      return EMPTYOWNED; 
+      if (cell.owner != me()) return EMPTY_NOT_OWNED;
+      return EMPTY_OWNED; 
     }
     Unit u = unit(cell.id);
     if (u.type == Zombie) return ZOMBIE;
@@ -130,38 +130,47 @@ struct PLAYER_NAME : public Player {
     }
     return 0;
   }
+
   // Returns Dir and Pos to the closest Food, Zombie or Enemy.
   // If it does not find any, returns Dir and Pos of first available cell or first empty not owned cell.
   TargetPosition findClosestUnit(const Unit& u, const VVI& distances, VVB& visited, queue<TargetPosition>& q) {
+    // Assign a maximum bfs depth
+
+    // Depending on the number of units I have
     if (myUnits.size() <= 40) max_bfs = 50;
     else if (myUnits.size() <= 60) max_bfs = 30;
     else max_bfs = 20;
-    if (max_bfs > num_rounds() - round()) max_bfs = num_rounds() - round();
-    TargetPosition firstEmpty = q.front();
-    bool found = false;
 
-    int str = strength(me());
+    // Depending on the number of rounds left
+    if (max_bfs > num_rounds() - round()) max_bfs = num_rounds() - round();
+
+    // Depending if the unit is infected
     bool isInfected = u.rounds_for_zombie != -1;
     int stepsPossibleAsZombie = u.rounds_for_zombie;
     if (isInfected) max_bfs = stepsPossibleAsZombie*2.5 + 1;
+
+    TargetPosition firstEmpty = q.front();
+    bool found = false;
+    int str = strength(me());
+
     priority_queue<PositionValue, vector<PositionValue>, Compare> targets;
-    // If we don't find anything, go to the first available cell or first empty not owned cell
+    // BFS to search the position with highest priority
     while (not q.empty() and max_bfs >= q.front().dist) {
       TargetPosition target = q.front();
       Pos p = target.p;
       Dir d = target.d;
       int dist = target.dist;
       q.pop();
+
       if (visited[p.i][p.j]) continue;
       visited[p.i][p.j] = true;
 
       bool isTargeted = distances[p.i][p.j] != -1;
       int prevDist = distances[p.i][p.j];
-      // If continue, treat it as a wall and stop searching there
-      // If break, do not go there but continue searching
-      // Else, put into priority queue
       CellContent content = board[p.i][p.j];
-      int priority;
+
+      // continue: skip current position
+      // break: stop searching
       switch(content) {
         case WASTE: continue;
         case ENEMY:
@@ -172,12 +181,12 @@ struct PLAYER_NAME : public Player {
           }
           if (true) {
             int enemyStr = strength(unit(cell(p).id).player);
-            double probability = double(str)/(double(str)+double(enemyStr));
+            double killProbability = double(str)/(double(str)+double(enemyStr));
             double totalProbability = probability + 0.3;
-            if (probability >= 0.75) targets.push({target, 16-dist});
-            else if (probability >= 0.63) targets.push({target, 13-dist});
-            else if (probability >= 0.5) targets.push({target, 10-dist});
-            else if (probability >= 0.286) targets.push({target, 4-dist});
+            if (killProbability >= 0.75) targets.push({target, 16-dist});
+            else if (killProbability >= 0.63) targets.push({target, 13-dist});
+            else if (killProbability >= 0.5) targets.push({target, 10-dist});
+            else if (killProbability >= 0.286) targets.push({target, 4-dist});
             else continue;
           }
           break;
@@ -185,13 +194,13 @@ struct PLAYER_NAME : public Player {
           if (isInfected and dist > 2.5*stepsPossibleAsZombie) continue;
           if (isTargeted and dist >= prevDist) break;
           if (dist == 1 or dist == 2) return target;
-          priority = calculatePriority(content, dist);
+          int priority = calculatePriority(content, dist);
           targets.push({target, priority});
           break;
         case FOOD:
           if (isInfected and dist > stepsPossibleAsZombie) continue;
           if (isTargeted and dist >= prevDist) break;
-          priority = calculatePriority(content, dist);
+          int priority = calculatePriority(content, dist);
           targets.push({target, priority});
           break;
         case DEAD:
@@ -202,10 +211,10 @@ struct PLAYER_NAME : public Player {
             max_bfs = 1.4*unit(cell({p.i, p.j}).id).rounds_for_zombie;
             continue;
           }
-          priority = calculatePriority(content, dist);
+          int priority = calculatePriority(content, dist);
           targets.push({target, priority});
           break;
-        case EMPTYNOTOWNED:
+        case EMPTY_NOT_OWNED:
           if (isInfected and dist > stepsPossibleAsZombie) continue;
           if (isTargeted and dist >= prevDist) break;
           // Find first not owned empty cell
@@ -276,11 +285,12 @@ struct PLAYER_NAME : public Player {
     return false;
   }  
 
+  // Given a unit u and the position of a zombie, return the best move to kill the zombie efficiently
   Dir zombieBestMove(const Unit& u, const Pos& zombiePos, int dist, Dir d) {
     if (dist == 1) return d;
     Pos unitPos = u.pos;
     int a = zombiePos.i - unitPos.i;
-    int b = zombiePos.j- unitPos.j;
+    int b = zombiePos.j - unitPos.j;
     if (dist == 2 and u.rounds_for_zombie == -1) {
       vector<Dir> possDirs;
       // Zombie in a straight line case
@@ -289,14 +299,14 @@ struct PLAYER_NAME : public Player {
         if (posOk(unitPos + Down) and not isPosDead(unitPos + Down)) possDirs.push_back(Down);
         if (possDirs.size() != 0) return getRandomDir(possDirs);    // RANDOM: Get either of them. IMPROVE -> BFS and make a thoughtful decision
         // Do not move
-        return DR;
+        return NO_MOVE;
       }
       if (b == 0) {
         if (posOk(unitPos + Right) and not isPosDead(unitPos + Right)) possDirs.push_back(Right);
         if (posOk(unitPos + Left) and not isPosDead(unitPos + Left)) possDirs.push_back(Left);
         if (possDirs.size() != 0) return getRandomDir(possDirs);    // RANDOM: Get either of them. IMPROVE -> BFS and make a thoughtful decision
         // Do not move
-        return DR;
+        return NO_MOVE;
       }
       // Zombie in a diagonal case
       if (a == 1 and posOk(unitPos + Up) and not isPosDead(unitPos + Up)) possDirs.push_back(Up);
@@ -312,7 +322,7 @@ struct PLAYER_NAME : public Player {
       if (b == -1 and posOk(unitPos + Right)) return Right;
       if (b == 1 and posOk(unitPos + Left)) return Left;
       // Do not move
-      return DR;
+      return NO_MOVE;
     }
     // General case: Go to greatest x or y position. If cannot, go to d.
     if (abs(a) > abs(b)) {
@@ -361,45 +371,53 @@ struct PLAYER_NAME : public Player {
     }
   }
 
+  // Returns the movements of all my units
   void getMovements(map<int, Movement>& movements) {
     // Contains the id of the unit planning to go to that position
     // If value is -1, no unit plans to go to that position
     // Else, there is a unit planning to go to that position and the value is the steps it has to take to get there
     VVI ids = VVI(n, VI(n, -1));
     VVI distances = VVI(n, VI(n, -1));
+
     while (not setMyUnits.empty()) {
       auto it = setMyUnits.begin();
       int id = *it;
       setMyUnits.erase(it);
       Unit u = unit(id);
+
       TargetPosition target = findNextMove(u, distances);
       Pos targetPos = target.p;
       int targetDist = target.dist;
       Dir d = target.d;
+
       int content = board[targetPos.i][targetPos.j];
       int prevDist = distances[targetPos.i][targetPos.j];
       int prevId = ids[targetPos.i][targetPos.j];
+
       // If we are going to an already targeted position (but we are closer), put the unit that was going there to recalculate its movement
-      if (prevDist != -1) {
+      bool isAlreadyTargeted = prevDist != 1;
+      if (isAlreadyTargeted) {
         movements.erase(prevId);
         setMyUnits.insert(prevId);
       }
-      int priority = 10;
+
+      int priority = 10;  // The lower the priority, the earlier we should execute it
+
       if (content == ENEMY and targetDist <= 2) {
-        if (targetDist == 1) priority = 1;
-        else if (targetDist == 2) priority = 20;
+        // The first player to attack, has a bonus 30% chance of winning the fight
+        if (targetDist == 1) priority = 1;        // Execute first to attack first
+        else if (targetDist == 2) priority = 20;  // Execute last to attack first
         else priority = 10;
-        movements.insert({id, {priority, d}});
       }
       else if (content == ZOMBIE) {
-        if (targetDist == 1) priority = 2; // SWITCH TO 3?
+        if (targetDist == 1) priority = 2;
         else priority = 4;
         d = zombieBestMove(u, targetPos, targetDist, d);
-        if (d != DR) movements.insert({id, {priority, d}});
       }
       else if (content == FOOD) {
-        if (targetDist == 1) priority = 3;  // SWITCH TO 2? OR GET FOOD EVEN IF ZOMBIE TARGETING the dist 1?
+        if (targetDist == 1) priority = 3;
         else priority = 10;
+
         Pos newPos = u.pos + d;
         Pos zombiePos;
         // If Zombie near our next move, adapt move to not get infected
@@ -407,21 +425,22 @@ struct PLAYER_NAME : public Player {
           int zombieDist = abs(u.pos.i-zombiePos.i) + abs(u.pos.j-zombiePos.j);
           d = zombieBestMove(u, zombiePos, zombieDist, d);
         }
-        movements.insert({id, {priority, d}});
       }
       else {
         priority = 10;
-        // If Zombie near our next move, adapt move to not get infected
+
         Pos newPos = u.pos + d;
         Pos zombiePos;
+        // If Zombie near our next move, adapt move to not get infected
         if (isZombieClose(newPos, zombiePos)) {
           // Prio escaping from zombie
           priority = 4;
           int zombieDist = abs(u.pos.i-zombiePos.i) + abs(u.pos.j-zombiePos.j);
           d = zombieBestMove(u, zombiePos, zombieDist, d);
         }
-        movements.insert({id, {priority, d}});
       }
+      if (d != NO_MOVE) movements.insert({id, {priority, d}});
+
       // Update values
       ids[targetPos.i][targetPos.j] = id;
       distances[targetPos.i][targetPos.j] = targetDist;
